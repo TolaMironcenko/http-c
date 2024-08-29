@@ -1,0 +1,10 @@
+[
+    {
+        "id": 0,
+        "username": "tola",
+        "email": "email@example.com",
+        "group": "root",
+        "is_superuser": true,
+        "password": "pass"
+    }
+]
