@@ -300,11 +300,11 @@ void handle_client(void *arg) {
     init_response(&response);
 
     set_status(&response, 200, "OK");
-    // add_header(&response, "Content-Type", "application/json");
+    // add_header(&response, "Content-Type", APPLICATION_JSON);
     // add_header(&response, "Content-Length", "117");
     // set_body(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]");
     // printf("%ld", strlen("[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]"));
-    set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", "application/json");
+    set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", APPLICATION_JSON);
 
     char response_string[4096] = {0};
     generate_response(&response, response_string, sizeof(response_string));
