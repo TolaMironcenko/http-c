@@ -55,23 +55,9 @@
 
 #define HTTP_OK "200 OK" // HTTP 200 OK response
 
-//------------------- HANDLER STRUCTURE -------------------------------------
-typedef struct Handler {
-    char *path;
-    void (*func)(const Request *request, Response *response);
-} Handler;
-//---------------------------------------------------------------------------
+#define MAX_HEADERS 100 // MAX_HEADERS
 
-//------------------------- SERVER STRUCTURE --------------------------------
-typedef struct Server {
-    int server_socket;              // server socket
-    int reuse_addr;                 // enable reuse addess
-    struct sockaddr_in server_addr; // server address
-    Handler handlers[100];
-} Server;
-//---------------------------------------------------------------------------
-
-//---------------------- REQUEST STRUCTURE -----------------------------------
+//---------------------- REQUEST LINE STRUCTURE -----------------------------------
 typedef struct RequestLine {
     char method[8];        // request method
     char path[256];        // request path
@@ -85,8 +71,6 @@ typedef struct Header {
     char value[1024]; // header value
 } Header;
 //---------------------------------------------------------------------------
-
-#define MAX_HEADERS 100 // MAX_HEADERS
 
 //--------------------- REQUEST STRUCTURE -----------------------------------
 typedef struct Request {
@@ -105,6 +89,23 @@ typedef struct Response {
     int headerCout;                 // headers counter
     char body[MAX_BODY_SIZE];       // response body
 } Response;
+//---------------------------------------------------------------------------
+
+//------------------- HANDLER STRUCTURE -------------------------------------
+typedef struct Handler {
+    char *path;
+    void (*handle)(const Request *, Response *);
+} Handler;
+//---------------------------------------------------------------------------
+
+//------------------------- SERVER STRUCTURE --------------------------------
+typedef struct Server {
+    int server_socket;              // server socket
+    int reuse_addr;                 // enable reuse addess
+    struct sockaddr_in server_addr; // server address
+    Handler *handlers;
+    int handlers_size;
+} Server;
 //---------------------------------------------------------------------------
 
 //-------------------- INIT DEFAULT RESPONSSE DATA FUNC ---------------------
