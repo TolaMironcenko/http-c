@@ -13,10 +13,12 @@
 #include <pthread.h>
 #include <string.h>
 #include <ctype.h>
+#include "colors.h"
 
 #define PORT 8080            // default server port
 #define BUFFER_SIZE BUFSIZ   // default server buffersize
 #define MAX_BODY_SIZE BUFSIZ // default response body size
+#define DEBUG                // DEBUG for debug messages
 
 //--------- MIME TYPES ------------------------------------------------------
 //----------- TEXT ----------------------------------------------------------
@@ -53,11 +55,19 @@
 
 #define HTTP_OK "200 OK" // HTTP 200 OK response
 
+//------------------- HANDLER STRUCTURE -------------------------------------
+typedef struct Handler {
+    char *path;
+    void (*func)(const Request *request, Response *response);
+} Handler;
+//---------------------------------------------------------------------------
+
 //------------------------- SERVER STRUCTURE --------------------------------
 typedef struct Server {
     int server_socket;              // server socket
     int reuse_addr;                 // enable reuse addess
     struct sockaddr_in server_addr; // server address
+    Handler handlers[100];
 } Server;
 //---------------------------------------------------------------------------
 
@@ -125,7 +135,7 @@ void set_body(Response *response, const char *body) {
 //---------------------------------------------------------------------------
 
 //------------------- SET RESPONSE STATUS CODE ------------------------------
-void set_status(Response *response, int status_code, const char *reason_phrase) {
+void set_status(Response *response, int status_code, char *reason_phrase) {
     response->status_code = status_code;
     response->reason_phrase = reason_phrase;
 }
@@ -284,12 +294,18 @@ void print_request(Request *request) {
 //----------------- FUNCTION TO SET RESPONSE CONTENT ------------------------
 void set_response_content(Response *response, const char *content, const char *content_type) {
     add_header(response, "Content-Type", content_type);
-    char content_length[10];
+    char content_length[20];
     sprintf(content_length, "%ld", strlen(content));
     add_header(response, "Content-Length", content_length);
     set_body(response, content);
 }
 //---------------------------------------------------------------------------
+
+void add_get(Server *srv, char *path, void (*handler)(const Request *request, Response *response)) {
+    Request *req = NULL;
+    Response *response = NULL;
+    (*handler)(req, response);
+}
 
 //------------------- HANDLE CLIENT CONNECTION FUNC -------------------------
 void handle_client(void *arg) {
@@ -300,13 +316,19 @@ void handle_client(void *arg) {
     recv(client_fd, buffer, BUFFER_SIZE, 0);
 
     Request *req = parse_request(buffer);
-    free_request(req);
+#ifdef DEBUG
+    printf("%s%s%s - %s%s%s\n", YELLOW, req->requestline.method, RESET, GREEN, req->requestline.path, RESET);
+#endif // DEBUG
 
     Response response;
     init_response(&response);
 
     set_status(&response, 200, "OK");
     set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", APPLICATION_JSON);
+
+    if (!strcmp(req->requestline.path, "/") && !strcmp(req->requestline.method, GET)) {
+        printf("%s\n", req->requestline.path);
+    }
 
     char response_string[4096] = {0};
     generate_response(&response, response_string, sizeof(response_string));
@@ -315,6 +337,7 @@ void handle_client(void *arg) {
     close(client_fd);
     free(arg);
     free(buffer);
+    free_request(req);
 }
 //---------------------------------------------------------------------------
 
