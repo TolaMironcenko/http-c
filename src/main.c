@@ -15,8 +15,8 @@
 // }
 
 void example(const Request *request, Response *response) {
-    printf("example function\n");
-    // set_response_content(response, "{\"hello\":\"world\"}", APPLICATION_JSON);
+    // printf("example function\n");
+    set_response_content(response, "{\"hello\":\"world\"}", APPLICATION_JSON);
 }
 
 int main()
@@ -26,6 +26,7 @@ int main()
     create_server(srv);
 
     add_get(srv, "/", example);
+    add_get(srv, "/example", example);
 
     serve(srv, "0.0.0.0", &port);
     return 0;

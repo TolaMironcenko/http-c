@@ -108,6 +108,11 @@ typedef struct Server {
 } Server;
 //---------------------------------------------------------------------------
 
+typedef struct handle_parameter {
+    int client_fd;
+    Server *srv;
+} handle_parameter;
+
 //-------------------- INIT DEFAULT RESPONSSE DATA FUNC ---------------------
 void init_response(Response *response) {
     response->status_code = 200;    // Default to OK
@@ -116,6 +121,11 @@ void init_response(Response *response) {
     response->body[0] = '\0';       // Empty body
 }
 //---------------------------------------------------------------------------
+
+void free_response(Response *response) {
+    free(response->reason_phrase);
+    free(response);
+}
 
 //-------------------- ADD HEADER TO RESPONSE FUNC --------------------------
 void add_header(Response *response, const char *key, const char *value) {
@@ -303,14 +313,22 @@ void set_response_content(Response *response, const char *content, const char *c
 //---------------------------------------------------------------------------
 
 void add_get(Server *srv, char *path, void (*handler)(const Request *request, Response *response)) {
-    Request *req = NULL;
-    Response *response = NULL;
-    (*handler)(req, response);
+    // http->funcs = (void(**)(int, HTTPreq*))realloc(http->funcs,
+    //                                                    http->cap * (sizeof (void(*)(int, HTTPreq*))));
+    srv->handlers[srv->handlers_size].path = malloc(sizeof(path));
+    srv->handlers[srv->handlers_size].path = path;
+    srv->handlers[srv->handlers_size].handle = malloc(sizeof(handler));
+    srv->handlers[srv->handlers_size].handle = handler;
+    srv->handlers_size++;
+    // Request *req = NULL;
+    // Response *response = NULL;
+    // (*handler)(req, response);
 }
 
 //------------------- HANDLE CLIENT CONNECTION FUNC -------------------------
 void handle_client(void *arg) {
-    int client_fd = *((int*)arg);
+    handle_parameter *parameter = arg;
+    int client_fd = parameter->client_fd;
     char *buffer = (char*)malloc(BUFFER_SIZE * sizeof(char));
 
     // ssize_t bytes_received = 
@@ -321,23 +339,32 @@ void handle_client(void *arg) {
     printf("%s%s%s - %s%s%s\n", YELLOW, req->requestline.method, RESET, GREEN, req->requestline.path, RESET);
 #endif // DEBUG
 
-    Response response;
-    init_response(&response);
+    Response *response = malloc(sizeof(Response));
+    init_response(response);
 
-    set_status(&response, 200, "OK");
-    set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", APPLICATION_JSON);
+    // set_status(&response, 200, "OK");
+    // set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", APPLICATION_JSON);
 
-    if (!strcmp(req->requestline.path, "/") && !strcmp(req->requestline.method, GET)) {
-        printf("%s\n", req->requestline.path);
+    bool found_path = false;
+    for (int i = 0; i < parameter->srv->handlers_size; i++) {
+        if (!strcmp(req->requestline.path, parameter->srv->handlers[i].path) && !strcmp(req->requestline.method, GET)) {
+            parameter->srv->handlers[i].handle(req, response);
+            found_path = true;
+        }
+    }
+    if (!found_path) {
+        set_status(response, 404, "Not Found");
+        set_response_content(response, "{\"ERROR\":\"404 Not Found\"}", APPLICATION_JSON);
     }
 
     char response_string[4096] = {0};
-    generate_response(&response, response_string, sizeof(response_string));
+    generate_response(response, response_string, sizeof(response_string));
 
     send(client_fd, response_string, sizeof(response_string), 0);
     close(client_fd);
     free(arg);
     free(buffer);
+    // free_response(response);
     free_request(req);
 }
 //---------------------------------------------------------------------------
@@ -354,6 +381,9 @@ int create_server(Server *srv) {
         perror("error SO_REUSEADDR");
         exit(EXIT_FAILURE);
     }
+    srv->handlers = (Handler *)malloc(sizeof(Handler));
+ // (void(**)(int, HTTPreq*))malloc(http->cap * (sizeof (void(*)(int, HTTPreq*))));
+    srv->handlers_size = 0;
     return 0;
 }
 //---------------------------------------------------------------------------
@@ -393,8 +423,11 @@ int serve(Server *srv,  char *address, int *port) {
             continue;
         }
 
+        handle_parameter *arg = malloc(sizeof(handle_parameter));
+        arg->client_fd = *client_fd;
+        arg->srv = srv;
         pthread_t thread_id;
-        pthread_create(&thread_id, NULL, (void*)handle_client, (void*)client_fd);
+        pthread_create(&thread_id, NULL, (void*)handle_client, (void*)arg);
         pthread_detach(thread_id);
     }
 
