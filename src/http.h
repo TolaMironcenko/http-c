@@ -42,7 +42,7 @@
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 
-//----------------------- REQUEST TYPES -------------------------------------
+//----------------------- REQUEST METHODS -----------------------------------
 #define GET "GET"       // get
 #define POST "POST"     // post
 #define PUT "PUT"       // put
@@ -51,7 +51,7 @@
 //---------------------------------------------------------------------------
 #define HTTP11 "HTTP/1.1" // http version
 
-#define HTTP_OK "200 OK"
+#define HTTP_OK "200 OK" // HTTP 200 OK response
 
 //------------------------- SERVER STRUCTURE --------------------------------
 typedef struct Server {
@@ -87,31 +87,26 @@ typedef struct Request {
 } Request;
 //---------------------------------------------------------------------------
 
-//-------------------- RESPONSELINE STRUCTURE -------------------------------
-// typedef struct ResponseLine { 
-//     int status_code;
-//     char version[16];
-//     char *status;
-// } ResponseLine;
-//---------------------------------------------------------------------------
-
 //--------------------- RESPONSE STRUCTURE ----------------------------------
 typedef struct Response {
-    int status_code;
-    char *reason_phrase;
-    char headers[MAX_HEADERS][256];
-    int headerCout;
-    char body[MAX_BODY_SIZE];
+    int status_code;                // status code
+    char *reason_phrase;            // reason phrase
+    char headers[MAX_HEADERS][256]; // headers array
+    int headerCout;                 // headers counter
+    char body[MAX_BODY_SIZE];       // response body
 } Response;
 //---------------------------------------------------------------------------
 
+//-------------------- INIT DEFAULT RESPONSSE DATA FUNC ---------------------
 void init_response(Response *response) {
     response->status_code = 200;    // Default to OK
     response->reason_phrase = "OK"; // Default reason phrase
     response->headerCout = 0;       // No headers
     response->body[0] = '\0';       // Empty body
 }
+//---------------------------------------------------------------------------
 
+//-------------------- ADD HEADER TO RESPONSE FUNC --------------------------
 void add_header(Response *response, const char *key, const char *value) {
     if (response->headerCout < MAX_HEADERS) {
         snprintf(response->headers[response->headerCout], sizeof(response->headers[response->headerCout]), "%s: %s", key, value);
@@ -120,17 +115,23 @@ void add_header(Response *response, const char *key, const char *value) {
         fprintf(stderr, "Max headers limit reached\n");
     }
 }
+//---------------------------------------------------------------------------
 
+//------------------- SET RESPONSE BODY FUNC --------------------------------
 void set_body(Response *response, const char *body) {
     strncpy(response->body, body, MAX_BODY_SIZE-1);
     response->body[MAX_BODY_SIZE-1] = '\0';
 }
+//---------------------------------------------------------------------------
 
+//------------------- SET RESPONSE STATUS CODE ------------------------------
 void set_status(Response *response, int status_code, const char *reason_phrase) {
     response->status_code = status_code;
     response->reason_phrase = reason_phrase;
 }
+//---------------------------------------------------------------------------
 
+//------------------ GENERATE RESPONSE STRING FUNC --------------------------
 void generate_response(Response *response, char *output, size_t size) {
     // Sratr with the status line
     snprintf(output, size, "HTTP/1.1 %d %s\r\n", response->status_code, response->reason_phrase);
@@ -149,7 +150,9 @@ void generate_response(Response *response, char *output, size_t size) {
         strncat(output, response->body, size - strlen(output) - 1);
     }
 }
+//---------------------------------------------------------------------------
 
+//----------- DELETE ALL WHITESPACES FROM STRING FUNC -----------------------
 char *trim_whitespace(char *str) {
     char *end;
 
@@ -167,7 +170,9 @@ char *trim_whitespace(char *str) {
 
     return str;
 }
+//---------------------------------------------------------------------------
 
+//--------------- PARSE FIRST LINE IN REQUEST FUNC --------------------------
 int parse_request_line(char *buffer, RequestLine *requestline) {
     char *method = strtok(buffer, " ");
     char *path = strtok(NULL, " ");
@@ -181,7 +186,9 @@ int parse_request_line(char *buffer, RequestLine *requestline) {
 
     return 0;
 }
+//---------------------------------------------------------------------------
 
+//------------------- PARSE REQUEST HEADERS FUNC ----------------------------
 int parse_headers(char *header_lines, Header *headers, int *headerCount) {
     char *line = strtok(header_lines, "\r\n");
     *headerCount = 0;
@@ -203,7 +210,9 @@ int parse_headers(char *header_lines, Header *headers, int *headerCount) {
 
     return 0;
 }
+//---------------------------------------------------------------------------
 
+//------------------ PARSE REQUEST FUNC -------------------------------------
 Request *parse_request(char *raw_request) {
     Request *request = malloc(sizeof(Request));
     if (request == NULL) return NULL;
@@ -249,14 +258,18 @@ Request *parse_request(char *raw_request) {
 
     return request;
 }
+//---------------------------------------------------------------------------
 
+//----------------- DELETE REQUEST FUNC -------------------------------------
 void free_request(Request *request) {
     if (request) {
         if (request->body) free(request->body);
         free(request);
     }
 }
+//---------------------------------------------------------------------------
 
+//--------------------- PRINT REQUEST DATA FUNC -----------------------------
 void print_request(Request *request) {
     printf("Method: %s\nPath: %s\nVersion: %s\n", request->requestline.method, request->requestline.path, request->requestline.version);
     for (int i = 0; i < request->headerCount; i++) {
@@ -266,16 +279,9 @@ void print_request(Request *request) {
         printf("body: %s\n", request->body);
     }
 }
+//---------------------------------------------------------------------------
 
-// char *get_req_method(char *buffer) {
-//     return strtok(buffer, " ");
-// }
-
-// char *get_req_path(char *buffer) {
-//     strtok(buffer, " ");
-//     return strtok(NULL, "");
-// }
-
+//----------------- FUNCTION TO SET RESPONSE CONTENT ------------------------
 void set_response_content(Response *response, const char *content, const char *content_type) {
     add_header(response, "Content-Type", content_type);
     char content_length[10];
@@ -283,27 +289,23 @@ void set_response_content(Response *response, const char *content, const char *c
     add_header(response, "Content-Length", content_length);
     set_body(response, content);
 }
+//---------------------------------------------------------------------------
 
+//------------------- HANDLE CLIENT CONNECTION FUNC -------------------------
 void handle_client(void *arg) {
     int client_fd = *((int*)arg);
     char *buffer = (char*)malloc(BUFFER_SIZE * sizeof(char));
 
     // ssize_t bytes_received = 
     recv(client_fd, buffer, BUFFER_SIZE, 0);
-    // printf("butes_received: %ld\ndata:\n%s\nreqtype: %s\nreqpath: %s\n", bytes_received, buffer, get_req_type(buffer), get_req_path(buffer));
 
     Request *req = parse_request(buffer);
-    // print_request(req);
     free_request(req);
 
     Response response;
     init_response(&response);
 
     set_status(&response, 200, "OK");
-    // add_header(&response, "Content-Type", APPLICATION_JSON);
-    // add_header(&response, "Content-Length", "117");
-    // set_body(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]");
-    // printf("%ld", strlen("[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]"));
     set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", APPLICATION_JSON);
 
     char response_string[4096] = {0};
@@ -312,8 +314,9 @@ void handle_client(void *arg) {
     send(client_fd, response_string, sizeof(response_string), 0);
     close(client_fd);
     free(arg);
-    // free(buffer);
+    free(buffer);
 }
+//---------------------------------------------------------------------------
 
 //---------------------- CREATE SERVER SOCKET FUNC --------------------------
 int create_server(Server *srv) {
