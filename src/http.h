@@ -93,8 +93,8 @@ typedef struct Response {
 
 //------------------- HANDLER STRUCTURE -------------------------------------
 typedef struct Handler {
-    char *path;
-    void (*handle)(const Request *, Response *);
+    char *path;                                  // request path
+    void (*handle)(const Request *, Response *); // request function
 } Handler;
 //---------------------------------------------------------------------------
 
@@ -103,15 +103,17 @@ typedef struct Server {
     int server_socket;              // server socket
     int reuse_addr;                 // enable reuse addess
     struct sockaddr_in server_addr; // server address
-    Handler *handlers;
-    int handlers_size;
+    Handler *handlers;              // handlers array
+    int handlers_size;              // size of handlers array
 } Server;
 //---------------------------------------------------------------------------
 
+//----------------------- HANDLE PARAMETER STRUCTURE ------------------------
 typedef struct handle_parameter {
-    int client_fd;
-    Server *srv;
+    int client_fd; // client socket
+    Server *srv;   // server structure
 } handle_parameter;
+//---------------------------------------------------------------------------
 
 //-------------------- INIT DEFAULT RESPONSSE DATA FUNC ---------------------
 void init_response(Response *response) {
@@ -122,10 +124,12 @@ void init_response(Response *response) {
 }
 //---------------------------------------------------------------------------
 
+//-------------------- FREE RESPONSE FUNC -----------------------------------
 void free_response(Response *response) {
     free(response->reason_phrase);
     free(response);
 }
+//---------------------------------------------------------------------------
 
 //-------------------- ADD HEADER TO RESPONSE FUNC --------------------------
 void add_header(Response *response, const char *key, const char *value) {
