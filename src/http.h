@@ -99,6 +99,12 @@ typedef struct Handler {
 } Handler;
 //---------------------------------------------------------------------------
 
+typedef struct mount_point {
+    char *path;
+    char *webpath;
+    char *type;
+} mount_point;
+
 //------------------------- SERVER STRUCTURE --------------------------------
 typedef struct Server {
     int server_socket;              // server socket
@@ -106,6 +112,8 @@ typedef struct Server {
     struct sockaddr_in server_addr; // server address
     Handler *handlers;              // handlers array
     int handlers_size;              // size of handlers array
+    mount_point *mount_points;
+    int mount_points_size;
 } Server;
 //---------------------------------------------------------------------------
 
@@ -356,6 +364,38 @@ void add_mount(Server *srv, char *webpath, char *path) {
     dir = opendir(path);
     if (dir) {
         while ((dir_iterator = readdir(dir)) != NULL) {
+            if (!strcmp(dir_iterator->d_name, ".") || !strcmp(dir_iterator->d_name, "..")) {
+                continue;
+            }
+            char filepath[1024];
+            strcpy(filepath, path);
+            strcat(filepath, "/");
+            strcat(filepath, dir_iterator->d_name);
+            filepath[strlen(filepath)] = '\0';
+            srv->mount_points[srv->mount_points_size].path = malloc(sizeof(filepath));
+            srv->mount_points[srv->mount_points_size].path = filepath;
+            char filewebpath[1024];
+            strcpy(filewebpath, webpath);
+            strcat(filewebpath, "/");
+            strcat(filewebpath, dir_iterator->d_name);
+            srv->mount_points[srv->mount_points_size].webpath = malloc(sizeof(filewebpath));
+            srv->mount_points[srv->mount_points_size].webpath = filewebpath;
+            char filetype[1024];
+            if (strstr(dir_iterator->d_name, ".html")) {
+                strcpy(filetype, TEXT_HTML);
+                filetype[strlen(filetype)] = '\0';
+            }
+            if (strstr(dir_iterator->d_name, ".js")) {
+                strcpy(filetype, TEXT_JS);
+                filetype[strlen(filetype)] = '\0';
+            }
+            if (strstr(dir_iterator->d_name, ".css")) {
+                strcpy(filetype, TEXT_CSS);
+                filetype[strlen(filetype)] = '\0';
+            }
+            srv->mount_points[srv->mount_points_size].type = malloc(sizeof(filetype));
+            srv->mount_points[srv->mount_points_size].type = filetype;
+            srv->mount_points_size++;
             printf("%s\n", dir_iterator->d_name);
         }
         closedir(dir);
@@ -391,6 +431,14 @@ void handle_client(void *arg) {
         }
     }
     if (!found_path) {
+        for (int i = 0; i < parameter->srv->mount_points_size; i++) {
+            if (!strcmp(req->requestline.path, parameter->srv->mount_points[i].webpath) && !strcmp(req->requestline.method, GET)) {
+                set_response_file(response, parameter->srv->mount_points[i].path, parameter->srv->mount_points[i].type);
+                found_path = true;
+            }
+        }
+    }
+    if (!found_path) {
         set_status(response, 404, "Not Found");
         set_response_content(response, "{\"ERROR\":\"404 Not Found\"}", APPLICATION_JSON);
     }
@@ -420,8 +468,9 @@ int create_server(Server *srv) {
         exit(EXIT_FAILURE);
     }
     srv->handlers = (Handler *)malloc(sizeof(Handler));
- // (void(**)(int, HTTPreq*))malloc(http->cap * (sizeof (void(*)(int, HTTPreq*))));
     srv->handlers_size = 0;
+    srv->mount_points = (mount_point *)malloc(sizeof(mount_point));
+    srv->mount_points_size = 0;
     return 0;
 }
 //---------------------------------------------------------------------------
@@ -445,6 +494,11 @@ int serve(Server *srv,  char *address, int *port) {
     {
         perror("Listen failed");
         exit(EXIT_FAILURE);
+    }
+
+    printf("%d\n", srv->mount_points_size);
+    for (int i = 0; i < srv->mount_points_size; i++) {
+        printf("%s - %s - %s\n", srv->mount_points[i].path, srv->mount_points[i].webpath, srv->mount_points[i].type);
     }
 
     printf("%sServer listening on host %s%s%s port %s%d\n%s", UGREEN, UYELLOW, address, UGREEN, UYELLOW, PORT, RESET);
