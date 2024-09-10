@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <ctype.h>
+#include <dirent.h>
 #include "colors.h"
 
 #define PORT 8080            // default server port
@@ -316,6 +317,24 @@ void set_response_content(Response *response, const char *content, const char *c
 }
 //---------------------------------------------------------------------------
 
+//-------------- set response file function ---------------------------------
+void set_response_file(Response *response, char *path, char *type) {
+    FILE *file = fopen(path, "r");
+
+    fseek(file, 0, SEEK_END);
+    int size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char filestr[size+1];
+    fread(filestr, 1, size, file);
+    filestr[size] = '\0';
+    set_response_content(response, filestr, type);
+
+    fclose(file);
+}
+//---------------------------------------------------------------------------
+
+//------------------------- add get handler function ------------------------
 void add_get(Server *srv, char *path, void (*handler)(const Request *request, Response *response)) {
     // http->funcs = (void(**)(int, HTTPreq*))realloc(http->funcs,
     //                                                    http->cap * (sizeof (void(*)(int, HTTPreq*))));
@@ -328,6 +347,21 @@ void add_get(Server *srv, char *path, void (*handler)(const Request *request, Re
     // Response *response = NULL;
     // (*handler)(req, response);
 }
+//---------------------------------------------------------------------------
+
+//--------------------- add mount function ----------------------------------
+void add_mount(Server *srv, char *webpath, char *path) {
+    DIR *dir;
+    struct dirent *dir_iterator;
+    dir = opendir(path);
+    if (dir) {
+        while ((dir_iterator = readdir(dir)) != NULL) {
+            printf("%s\n", dir_iterator->d_name);
+        }
+        closedir(dir);
+    }
+}
+//---------------------------------------------------------------------------
 
 //------------------- HANDLE CLIENT CONNECTION FUNC -------------------------
 void handle_client(void *arg) {
@@ -413,7 +447,7 @@ int serve(Server *srv,  char *address, int *port) {
         exit(EXIT_FAILURE);
     }
 
-    printf("Server listening on port %d\n", PORT);
+    printf("%sServer listening on host %s%s%s port %s%d\n%s", UGREEN, UYELLOW, address, UGREEN, UYELLOW, PORT, RESET);
     while (true)
     {
         // client info
