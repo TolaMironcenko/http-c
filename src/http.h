@@ -99,11 +99,13 @@ typedef struct Handler {
 } Handler;
 //---------------------------------------------------------------------------
 
+//------------------ mount point structure ----------------------------------
 typedef struct mount_point {
-    char *path;
-    char *webpath;
-    char *type;
+    char *path;    // path in filesystem
+    char *webpath; // path on web
+    char *type;    // file type (if NULL then binary file)
 } mount_point;
+//---------------------------------------------------------------------------
 
 //------------------------- SERVER STRUCTURE --------------------------------
 typedef struct Server {
@@ -112,8 +114,8 @@ typedef struct Server {
     struct sockaddr_in server_addr; // server address
     Handler *handlers;              // handlers array
     int handlers_size;              // size of handlers array
-    mount_point *mount_points;
-    int mount_points_size;
+    mount_point *mount_points;      // mount points array
+    int mount_points_size;          // mount points array size
 } Server;
 //---------------------------------------------------------------------------
 
@@ -344,16 +346,12 @@ void set_response_file(Response *response, char *path, char *type) {
 
 //------------------------- add get handler function ------------------------
 void add_get(Server *srv, char *path, void (*handler)(const Request *request, Response *response)) {
-    // http->funcs = (void(**)(int, HTTPreq*))realloc(http->funcs,
-    //                                                    http->cap * (sizeof (void(*)(int, HTTPreq*))));
+    srv->handlers = realloc(srv->handlers, sizeof(Handler)*(srv->handlers_size+1));
     srv->handlers[srv->handlers_size].path = malloc(sizeof(path));
     srv->handlers[srv->handlers_size].path = path;
     srv->handlers[srv->handlers_size].handle = malloc(sizeof(handler));
     srv->handlers[srv->handlers_size].handle = handler;
     srv->handlers_size++;
-    // Request *req = NULL;
-    // Response *response = NULL;
-    // (*handler)(req, response);
 }
 //---------------------------------------------------------------------------
 
@@ -367,36 +365,33 @@ void add_mount(Server *srv, char *webpath, char *path) {
             if (!strcmp(dir_iterator->d_name, ".") || !strcmp(dir_iterator->d_name, "..")) {
                 continue;
             }
-            char filepath[1024];
-            strcpy(filepath, path);
-            strcat(filepath, "/");
-            strcat(filepath, dir_iterator->d_name);
-            filepath[strlen(filepath)] = '\0';
-            srv->mount_points[srv->mount_points_size].path = malloc(sizeof(filepath));
-            srv->mount_points[srv->mount_points_size].path = filepath;
-            char filewebpath[1024];
-            strcpy(filewebpath, webpath);
-            strcat(filewebpath, "/");
-            strcat(filewebpath, dir_iterator->d_name);
-            srv->mount_points[srv->mount_points_size].webpath = malloc(sizeof(filewebpath));
-            srv->mount_points[srv->mount_points_size].webpath = filewebpath;
-            char filetype[1024];
+            srv->mount_points = realloc(srv->mount_points, sizeof(mount_point)*(srv->mount_points_size+1));
+
+            srv->mount_points[srv->mount_points_size].path = malloc(sizeof(path)+sizeof(dir_iterator->d_name)+1);
+            snprintf(srv->mount_points[srv->mount_points_size].path, sizeof(path)+sizeof(dir_iterator->d_name)+1, "%s/%s", path, dir_iterator->d_name);
+
+            srv->mount_points[srv->mount_points_size].webpath = malloc(sizeof(webpath)+sizeof(dir_iterator->d_name)+1);
+            if (strcmp(webpath, "/")) {
+                snprintf(srv->mount_points[srv->mount_points_size].webpath, sizeof(webpath)+sizeof(dir_iterator->d_name)+1, "%s/%s", webpath, dir_iterator->d_name);
+            } else {
+                snprintf(srv->mount_points[srv->mount_points_size].webpath, sizeof(webpath)+sizeof(dir_iterator->d_name)+1, "%s%s", webpath, dir_iterator->d_name);
+            }
+
             if (strstr(dir_iterator->d_name, ".html")) {
-                strcpy(filetype, TEXT_HTML);
-                filetype[strlen(filetype)] = '\0';
+                srv->mount_points[srv->mount_points_size].type = malloc(sizeof(TEXT_HTML));
+                snprintf(srv->mount_points[srv->mount_points_size].type, sizeof(TEXT_HTML), "%s", TEXT_HTML);
             }
             if (strstr(dir_iterator->d_name, ".js")) {
-                strcpy(filetype, TEXT_JS);
-                filetype[strlen(filetype)] = '\0';
+                srv->mount_points[srv->mount_points_size].type = malloc(sizeof(TEXT_JS));
+                snprintf(srv->mount_points[srv->mount_points_size].type, sizeof(TEXT_JS), "%s", TEXT_JS);
             }
             if (strstr(dir_iterator->d_name, ".css")) {
-                strcpy(filetype, TEXT_CSS);
-                filetype[strlen(filetype)] = '\0';
+                srv->mount_points[srv->mount_points_size].type = malloc(sizeof(TEXT_CSS));
+                snprintf(srv->mount_points[srv->mount_points_size].type, sizeof(TEXT_CSS), "%s", TEXT_CSS);
             }
-            srv->mount_points[srv->mount_points_size].type = malloc(sizeof(filetype));
-            srv->mount_points[srv->mount_points_size].type = filetype;
+
             srv->mount_points_size++;
-            printf("%s\n", dir_iterator->d_name);
+
         }
         closedir(dir);
     }
@@ -420,9 +415,6 @@ void handle_client(void *arg) {
     Response *response = malloc(sizeof(Response));
     init_response(response);
 
-    // set_status(&response, 200, "OK");
-    // set_response_content(&response, "[{\"id\":0,\"username\":\"tola\",\"email\":\"tolamironcenko@icloud.com\",\"group\":\"root\",\"is_superuser\":true,\"password\":\"2808\"}]", APPLICATION_JSON);
-
     bool found_path = false;
     for (int i = 0; i < parameter->srv->handlers_size; i++) {
         if (!strcmp(req->requestline.path, parameter->srv->handlers[i].path) && !strcmp(req->requestline.method, GET)) {
@@ -432,7 +424,7 @@ void handle_client(void *arg) {
     }
     if (!found_path) {
         for (int i = 0; i < parameter->srv->mount_points_size; i++) {
-            if (!strcmp(req->requestline.path, parameter->srv->mount_points[i].webpath) && !strcmp(req->requestline.method, GET)) {
+            if (!strcmp(req->requestline.path, parameter->srv->mount_points[i].webpath)) {
                 set_response_file(response, parameter->srv->mount_points[i].path, parameter->srv->mount_points[i].type);
                 found_path = true;
             }
@@ -496,9 +488,15 @@ int serve(Server *srv,  char *address, int *port) {
         exit(EXIT_FAILURE);
     }
 
+    printf("%d\n", srv->handlers_size);
+    for (int i = 0; i < srv->handlers_size; i++) {
+        printf("%d: %s\n", i, srv->handlers[i].path);
+    }
+
     printf("%d\n", srv->mount_points_size);
     for (int i = 0; i < srv->mount_points_size; i++) {
-        printf("%s - %s - %s\n", srv->mount_points[i].path, srv->mount_points[i].webpath, srv->mount_points[i].type);
+        printf("%d: %s - %s - %s\n", i, srv->mount_points[i].path, srv->mount_points[i].webpath, srv->mount_points[i].type);
+        // printf("%s - %s - %s\n", srv->mount_points[i].path, srv->mount_points[i].webpath, srv->mount_points[i].type);
     }
 
     printf("%sServer listening on host %s%s%s port %s%d\n%s", UGREEN, UYELLOW, address, UGREEN, UYELLOW, PORT, RESET);
