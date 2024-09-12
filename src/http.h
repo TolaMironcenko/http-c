@@ -15,11 +15,13 @@
 #include <ctype.h>
 #include <dirent.h>
 #include "colors.h"
+#include "jwt.h"
 
 #define PORT 8080            // default server port
 #define BUFFER_SIZE BUFSIZ   // default server buffersize
 #define MAX_BODY_SIZE BUFSIZ // default response body size
 #define DEBUG                // DEBUG for debug messages
+// #define DEBUG_LEVEL_3        // debug level for more debug messages
 
 //--------- MIME TYPES ------------------------------------------------------
 //----------- TEXT ----------------------------------------------------------
@@ -488,6 +490,7 @@ int serve(Server *srv,  char *address, int *port) {
         exit(EXIT_FAILURE);
     }
 
+#ifdef DEBUG_LEVEL_3
     printf("%d\n", srv->handlers_size);
     for (int i = 0; i < srv->handlers_size; i++) {
         printf("%d: %s\n", i, srv->handlers[i].path);
@@ -498,6 +501,7 @@ int serve(Server *srv,  char *address, int *port) {
         printf("%d: %s - %s - %s\n", i, srv->mount_points[i].path, srv->mount_points[i].webpath, srv->mount_points[i].type);
         // printf("%s - %s - %s\n", srv->mount_points[i].path, srv->mount_points[i].webpath, srv->mount_points[i].type);
     }
+#endif
 
     printf("%sServer listening on host %s%s%s port %s%d\n%s", UGREEN, UYELLOW, address, UGREEN, UYELLOW, PORT, RESET);
     while (true)

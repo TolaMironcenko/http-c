@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall
+CFLAGS=-Wall -ljansson -lssl -lcrypto
 SOURCES=src/main.c
 TARGET=bin/main
 
